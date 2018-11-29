@@ -17,7 +17,7 @@ open import Data.Product hiding (map)
 open import Agda.Builtin.Unit
 
 postulate
-  𝕃⇄𝕊 : ∀ (cs : List Char) → 𝕊→𝕃 (𝕃→𝕊 cs) ≡ cs
+  𝕃⇄𝕊 : ∀ (cs : List Char) → (𝕊→𝕃 (𝕃→𝕊 cs)) ≡ cs
 
 _at_ : ∀ {n} {A : Set} → Vec A n → Fin n → A
 (x ∷ xs) at zero = x
