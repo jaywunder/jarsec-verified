@@ -24,6 +24,8 @@ open import Data.Char.Base
 open import Agda.Builtin.Char
 open import Relation.Binary.PropositionalEquality using (_≡_ ; refl)
 
+open import Relation.Nullary
+
 record Parser (A : Set) : Set where
   constructor mk-parser
   field
@@ -232,10 +234,28 @@ partial-parse p str with parse p (primStringToList str)
 partial-parse p str | [] = nothing
 partial-parse p str | xs = just xs
 
-run-parser : { A : Set } → Parser A → String → Maybe (List A)
-run-parser p str = case (parse p (primStringToList str)) of λ where
+run-parser : { A : Set } → Parser A → List Char → Maybe (List (A × List Char))
+run-parser p str = case parse p str of λ where
+  [] → nothing
+  xs → just xs
+-- run-parser : { A : Set } → Parser A → String → Maybe (List A)
+-- run-parser p str = case (parse p (primStringToList str)) of λ where
+--   [] → nothing
+--   xs →
+--     let xs′ = filter (λ x → yes ((length (proj₂ x)) ≡ 0)) xs
+--     in just (foldl (λ sum x → (proj₁ x) ∷ sum) [] xs′)
+
+-- _ : run-parser (char 'x') "xx" ≡ just ('x' ∷ [])
+-- _ = refl
+
+
+run-parser′ : { A : Set } → Parser A → String → Maybe (List A)
+run-parser′ p str = case (parse p (primStringToList str)) of λ where
   [] → nothing
   xs → just (foldl (λ sum x → (proj₁ x) ∷ sum) [] xs)
+
+_ : run-parser′ (char 'x') "x" ≡ just ('x' ∷ [])
+_ = refl
 
 run : String → Maybe Expr
 run = runParser expr
