@@ -15,24 +15,69 @@ open import Data.Sum hiding (map)
 open import Data.String hiding (length ; _++_) renaming (primStringToList to 𝕊→𝕃 ; primStringFromList to 𝕃→𝕊)
 open import Data.Product hiding (map)
 open import Agda.Builtin.Unit
-open import Data.List.Any
+-- open import Data.List.Any
 open import Data.List.All
 
-correct : let Result = List A × List Char in
+postulate
+  sym : ∀ {A : Set} {x y : A} → x ≡ y → y ≡ x
+  head-from-≡ : ∀ {A : Set} {x y : A} {xs ys : List A} → (x List.∷ xs) ≡ (y ∷ ys) → x ≡ y
+  tail-from-≡ : ∀ {A : Set} {x y : A} {xs ys : List A} → (x List.∷ xs) ≡ (y ∷ ys) → xs ≡ ys
+
+correct : let Result = List Char × List Char in
   ∀ (cfg : Cfg 0) (cs : List Char) (rs : List Result)
-  → run-parser (interp cfg) cs ≡ just rs
-  → All (λ r → (proj₁ r) ∈[ cfg ] × (proj₁ r) ++ (proj₂ r) ≡ cs) rs
+  → cs ∈[ cfg ]
+  → jarsec.parse (interp cfg) cs ≡ rs
+  → All (λ r → (proj₁ r) ++ (proj₂ r) ≡ cs) rs
+  → All (λ r → (proj₁ r) ∈[ cfg ]) rs
 
-  -- → All (λ r → (proj₁ r) ∈[ cfg ] × ∃ (λ x → r ++ x ≡ cs)) rs
+correct emp cs rs () e≡ e++
 
-correct emp cs rs ()
-correct eps cs (([] , cs) ∷ []) refl = (eps , refl) ∷ []
-correct (lit x) cs rs ε = foldl (λ sum r → {! ? ∷ sum  !}) {! []  !} rs
-correct (var ()) cs rs ε
-correct (seq cfg cfg₁) cs rs ε = {!   !}
-correct (alt cfg cfg₁) cs rs ε = {!   !}
-correct (many cfg) cs rs ε = {!   !}
-correct (fix cfg) cs rs ε = {!   !}
+correct eps cs [] cs∈ e≡ e++ = []
+correct eps cs (r ∷ []) cs∈ e≡ e++ rewrite sym (head-from-≡ e≡) | tail-from-≡ e≡
+  = eps ∷ (correct eps cs [] cs∈ {!   !} (tail e++))
+
+correct (lit l) cs [] cs∈ e≡ e++ = []
+correct (lit l) cs ((fst , snd) ∷ rs) cs∈ e≡ e++
+  = {! head e++ && cs∈  !} ∷ correct (lit l) cs rs cs∈ {!   !} (tail e++)
+
+correct (var ()) cs rs cs∈ e≡ e++
+correct (seq cfg₁ cfg₂) cs [] cs∈ e≡ e++ = []
+correct (seq cfg₁ cfg₂) cs (r ∷ rs) cs∈ e≡ e++
+  = (seq {! cs ∈[ cfg₁ ]  !} {!    !}) ∷ correct (seq cfg₁ cfg₂) cs rs cs∈ {!   !} (tail e++)
+  where
+  weaken-seq : ∀ cs cfg₁ cfg₂ → cs ∈[ seq cfg₁ cfg₂ ]
+    → let cs₁ , cs₂ = substrings of cs in
+      cs₁ ∈[ cfg₁ ] × cs₂ ∈[ cfg₂ ]
+  weaken-seq = ?
+
+correct (alt cfg₁ cfg₂) cs rs cs∈ e≡ e++ = {!   !}
+correct (many cfg) cs rs cs∈ e≡ e++ = {!   !}
+correct (fix cfg) cs rs cs∈ e≡ e++ = {!   !}
+
+
+
+
+-- correct cfg cs rs e = {!   !}
+--
+-- correct emp cs [] = ?
+-- correct eps cs (([] , cs) ∷ []) refl = (eps , refl) ∷ []
+--
+-- correct (lit x) [] [] ε = []
+-- correct (lit x) cs (r ∷ rs) ε = ({! lit ?  !} , {! ε  !}) ∷ (correct (lit x) cs rs {!   !})
+--
+-- correct (var ()) cs rs ε
+--
+-- correct (seq cfg₁ cfg₂) cs [] ε = []
+-- correct (seq cfg₁ cfg₂) cs (r ∷ rs) ε = ((seq {!   !} {!   !}) , {!   !}) ∷ (correct (seq cfg₁ cfg₂) cs rs {!   !})
+--
+-- correct (alt cfg₁ cfg₂) cs [] ε = []
+-- correct (alt cfg₁ cfg₂) cs (r ∷ rs) ε = ({! alt ? ?  !} , {!   !}) ∷ (correct (alt cfg₁ cfg₂) cs rs {!   !})
+--
+-- correct (many cfg) cs [] ε = []
+-- correct (many cfg) cs (r ∷ rs) ε = ({!    !} , {!   !}) ∷ (correct (many cfg) cs rs  {!   !})
+--
+-- correct (fix cfg) cs [] ε = []
+-- correct (fix cfg) cs (r ∷ rs) ε = ({!   !} , {!   !}) ∷ (correct (fix cfg) cs rs {!   !})
 
 -- correct eps cs ([] ∷ []) refl = ?
 --
