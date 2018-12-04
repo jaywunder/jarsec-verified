@@ -39,7 +39,8 @@ bind : ∀ { A B : Set } → Parser A → (A → Parser B) → Parser B
 bind {A} p f = mk-parser $ λ cs →
   let rs : List (A × List Char)
       rs = parse p cs
-  in concatMap (λ where (x , cs′) → parse (f x) cs′) rs
+  in concatMap (λ x → parse (f (proj₁ x)) (proj₂ x)) rs
+  -- in concatMap (λ where (x , cs′) → parse (f x) cs′) rs
 
 _>>=_ : ∀ { A B : Set } → Parser A → (A → Parser B) → Parser B
 p >>= f = bind p f
