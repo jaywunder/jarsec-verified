@@ -37,82 +37,53 @@ correct (lit x) (c ∷ cs) with charEq x c | charEq-T x c | charEq-F x c
 ... | true | b | d rewrite b refl = (lit c , refl) ∷ []
 ... | false | b | d = []
 correct (var ()) cs
-correct (seq cfg₁ cfg₂) cs =
-  let all₁ = correct cfg₁ cs
-      -- HAVE: All (λ r → (proj₁ r ∈[ cfg₁ ]) × proj₁ r ++ proj₂ r ≡ cs)
-      --   (Parser.parse (interp cfg₁) cs)
-      all₂ = correct cfg₂
-  in {!   !}
-  -- GOAL: All
-  --   (λ r → (proj₁ r ∈[ seq cfg₁ cfg₂ ]) × proj₁ r ++ proj₂ r ≡ cs)
-  --   (Parser.parse
-  --    (interp cfg₁ >>=
-  --     (λ x →
-  --        interp cfg₂ >>=
-  --        (λ y → Parser.mk-parser (λ str → (x ++ y , str) ∷ []))))
-  --    cs)
+correct (seq cfg₁ cfg₂) cs with (parse (interp cfg₁) cs) | correct cfg₁ cs
+correct (seq cfg₁ cfg₂) cs | []       | []        = []
+correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | px ∷ all₁ with parse (interp cfg₁) (proj₂ r₁) | correct cfg₂ (proj₂ r₁)
+correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | px ∷ all₁ | [] | all₂ = {!   !}
+correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | px ∷ all₁ | x ∷ rs₂ | all₂ = {!   !}
+
+-- All
+--   (λ r → (proj₁ r ∈[ seq cfg₁ cfg₂ ]) × proj₁ r ++ proj₂ r ≡ cs)
+--   (parse
+--     (interp cfg₁ >>=
+--       (λ x →
+--           interp cfg₂ >>=
+--           (λ y → Parser.mk-parser (λ str → (x ++ y , str) ∷ []))))
+--     cs)
+--
+--                                   = x
+-- All (λ r → (proj₁ r ∈[ cfg₁ ]) × proj₁ r ++ proj₂ r ≡ cs)
+--   (parse (interp cfg₁) cs)
+--                                   = y        = str
+-- All (λ r → (proj₁ r ∈[ cfg₂ ]) × proj₁ r ++ proj₂ r ≡ (proj₂ r₁))
+--   (parse (interp cfg₁) (proj₂ r₁))
+
+-- correct (seq cfg₁ cfg₂) cs with parse (interp cfg₁) cs | correct cfg₁ cs
+-- correct (seq cfg₁ cfg₂) cs | [] | [] = []
+-- correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ with parse (interp cfg₁) (proj₂ r₁) | correct cfg₂ (proj₂ r₁)
+-- correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ | [] | all₂ = {! seq r₁ []  !}
+-- correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ | r₂ ∷ rs₂ | all₂ = {! seq r₁ r₂   !}
+
   where
-    -- all>>= :
-    --   let L = List Char
-    --       P : Pred (L × L) Level.zero
-    --       P = (λ r → (proj₁ r ∈[ cfg₁ ]) × proj₁ r ++ proj₂ r ≡ cs)
-    --       Q : Pred (L × L) Level.zero
-    --       Q = (λ r → (proj₁ r ∈[ seq cfg₁ cfg₂ ]) × proj₁ r ++ proj₂ r ≡ cs)
-    --   in ∀ {cs}
-    --   → (p₁ p₂ : Parser L)
-    --   → All P (jarsec.parse p₁ cs)
-    --   → (λ cs′ → All P (jarsec.parse p₂ cs′))
-    --   → All Q
-    --     (Parser.parse
-    --       (p₁ >>= (λ x →
-    --         p₂ >>= (λ y →
-    --           Parser.mk-parser (λ str → (x ++ y , str) ∷ []))))
-    --       cs)
-    -- all>>= p₁ p₂ e₁ e₂ with (Parser.parse
-    --                           (p₁ >>= (λ x →
-    --                             p₂ >>= (λ y →
-    --                               Parser.mk-parser (λ str → (x ++ y , str) ∷ []))))
-    --                           cs)
-    -- all>>= p₁ p₂ e₁ e₂ | [] = {! []  !}
-    -- all>>= p₁ p₂ e₁ e₂ | r ∷ rs = {!   !}
-
-    strengthen-to-seq :
-      let L = List Char
-          -- P₁ : Pred (L × L) Level.zero
-          -- P₁ = (λ r → ((proj₁ r) ∈[ cfg₁ ]) × proj₁ r ++ proj₂ r ≡ cs)
-          -- P₂ : Pred (L × L) Level.zero
-          -- P₂ = (λ r → ((proj₁ r) ∈[ cfg₂ ]) × proj₁ r ++ proj₂ r ≡ cs)
-          Q : Pred (L × L) Level.zero
-          Q = (λ r → ((proj₁ r) ∈[ seq cfg₁ cfg₂ ]) × proj₁ r ++ proj₂ r ≡ cs)
-      in All Q (Parser.parse
-        ((interp cfg₁) >>= (λ x →
-          (interp cfg₂) >>= (λ y →
-            Parser.mk-parser (λ str → (x ++ y , str) ∷ []))))
-        cs)
-    strengthen-to-seq with parse (interp cfg₁) cs | correct cfg₁ cs
-    strengthen-to-seq | [] | [] = []
-    strengthen-to-seq | r₁ ∷ rs₁  | a₁ ∷ all₁ with parse (interp cfg₁) (proj₂ r₁) | correct cfg₂ (proj₂ r₁)
-    strengthen-to-seq | r₁ ∷ rs₁  | a₁ ∷ all₁ | rs₂ | all₂
-      = {! all₂  !}
-    -- strengthen-to-seq | r₁ ∷ rs₁  | a₁ ∷ all₁ | [] | []
-    --   = {! all₁  !}
-    -- strengthen-to-seq | r₁ ∷ rs₁  | a₁ ∷ all₁ | r₂ ∷ rs₂  | a₂ ∷ all₂
-    --   = {! all₁  !}
-      -- GOAL : All
-        -- (λ r → proj₁ r ∈[ seq cfg₁ cfg₂ ] × proj₁ r ++ proj₂ r ≡ cs)
-        -- (foldr _++_ []
-        --  (Data.List.map (λ x → (proj₁ r₁ ++ proj₁ x , proj₂ x) ∷ [])
-        --   (Parser.parse (interp cfg₂) (proj₂ r₁)))
-        --  ++
-        --  foldr _++_ []
-        --  (Data.List.map
-        --   (λ x →
-        --      foldr _++_ []
-        --      (Data.List.map (λ x₁ → (proj₁ x ++ proj₁ x₁ , proj₂ x₁) ∷ [])
-        --       (Parser.parse (interp cfg₂) (proj₂ x))))
-        --   rs₁))
-
-    -- GIVEN >>= >>= ++ shape, return a seq cfg₁ cfg₂
+    -- strengthen-to-seq :
+    --   ∀ (r₁ : List Char × List Char)
+    --   → (a₁ : proj₁ r₁ ∈[ cfg₁ ] × proj₁ r₁ ++ proj₂ r₁ ≡ cs)
+    --   → All (λ r → proj₁ r ∈[ seq cfg₁ cfg₂ ] × proj₁ r ++ proj₂ r ≡ cs)
+    --     (foldr _++_ []
+    --       (Data.List.map (λ x → (proj₁ r₁ ++ proj₁ x , proj₂ x) ∷ [])
+    --         (parse (interp cfg₂) (proj₂ r₁)))
+    --       ++
+    --       foldr _++_ []
+    --       (Data.List.map
+    --         (λ x →
+    --             foldr _++_ []
+    --             (Data.List.map (λ x₁ → (proj₁ x ++ proj₁ x₁ , proj₂ x₁) ∷ [])
+    --               (parse (interp cfg₂) (proj₂ x))))
+    --         rs₁))
+    --
+    -- strengthen-to-seq r₁ a₁ with parse (interp cfg₁) (proj₂ r₁) | correct cfg₂ (proj₂ r₁)
+    -- ... | rs₂ | all₂ = {! rs₂ all₂  !}
 
 correct (alt cfg₁ cfg₂) cs with (Parser.parse (interp (seq cfg₁ cfg₂)) cs)
 ... | rs =
@@ -145,36 +116,3 @@ correct (alt cfg₁ cfg₂) cs with (Parser.parse (interp (seq cfg₁ cfg₂)) c
 
 correct (many cfg) cs = {!   !} -- rewrite unblock
 correct (fix cfg) cs = {!   !}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
--- correct (alt cfg₁ cfg₂) cs with (Parser.parse (jarsec.combine (interp cfg₁) (interp cfg₂)) cs)
--- ... | rs =
---   let all₁ = correct cfg₁ cs
---       all₂ = correct cfg₂ cs
---   in {! Data.List.All.map ? all₁  !}
---   where
---   rinduction : List (List Char × List Char) → _
---   rinduction [] = []
---   rinduction (r ∷ rs) =
---     let all₁ = correct cfg₁ cs
---         all₂ = correct cfg₂ cs
---     in Data.List.All.lookup all₁ {!    !}
--- -- correct (alt cfg₁ cfg₂) cs | [] = let all₁ = correct cfg₁ cs ; all₂ = correct cfg₂ cs in []
--- -- correct (alt cfg₁ cfg₂) cs | r ∷ rs =
--- --   let all₁ = correct cfg₁ cs
--- --       all₂ = correct cfg₂ cs
--- --   in ({! Data.List.All.lookup  !} , {!   !}) ∷ {! correct (alt cfg₁ cfg₂) cs  !}
