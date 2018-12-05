@@ -23,6 +23,13 @@ postulate
   head-from-≡ : ∀ {A : Set} {x y : A} {xs ys : List A} → (x List.∷ xs) ≡ (y ∷ ys) → x ≡ y
   tail-from-≡ : ∀ {A : Set} {x y : A} {xs ys : List A} → (x List.∷ xs) ≡ (y ∷ ys) → xs ≡ ys
 
+  compress-concatMap : ∀ {A : Set} {f : A → List A} {xs : List A}
+    → (foldr _++_ [] (Data.List.map f xs)) ≡ (concatMap f xs)
+
+  ++-runit : ∀ {A : Set} (m : List A) → m ++ [] ≡ m
+  ++-assoc : ∀ {A : Set} (m n p : List A) → (m ++ n) ++ p ≡ m ++ (n ++ p)
+  ++-comm : ∀ {A : Set} (m n : List A) → m ++ n ≢ n ++ m
+
   charEq-T : ∀ x c → (charEq x c) ≡ true → x ≡ c
   charEq-F : ∀ x c → (charEq x c) ≡ false → x ≢ c
 
@@ -38,10 +45,24 @@ correct (lit x) (c ∷ cs) with charEq x c | charEq-T x c | charEq-F x c
 ... | false | b | d = []
 correct (var ()) cs
 correct (seq cfg₁ cfg₂) cs with (parse (interp cfg₁) cs) | correct cfg₁ cs
-correct (seq cfg₁ cfg₂) cs | []       | []        = []
-correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | px ∷ all₁ with parse (interp cfg₁) (proj₂ r₁) | correct cfg₂ (proj₂ r₁)
-correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | px ∷ all₁ | [] | all₂ = {!   !}
-correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | px ∷ all₁ | x ∷ rs₂ | all₂ = {!   !}
+correct (seq cfg₁ cfg₂) cs | [] | [] = []
+correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ with parse (interp cfg₂) (proj₂ r₁) | correct cfg₂ (proj₂ r₁)
+correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ | [] | [] = {!   !}
+correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ | r₂ ∷ rs₂ | a₂ ∷ all₂
+  = strengthen-to-seq r₁ a₁ r₂ a₂ ∷ {! correct  !}
+  where
+  strengthen-to-seq : let Result = List Char × List Char in
+    ∀ (r₁ : Result)
+    → (a₁ : proj₁ r₁ ∈[ cfg₁ ] × proj₁ r₁ ++ proj₂ r₁ ≡ cs)
+    → (r₂ : Result)
+    → (a₂ : proj₁ r₂ ∈[ cfg₂ ] × proj₁ r₂ ++ proj₂ r₂ ≡ proj₂ r₁)
+    → (proj₁ r₁ ++ proj₁ r₂) ∈[ seq cfg₁ cfg₂ ] × (proj₁ r₁ ++ proj₁ r₂) ++ proj₂ r₂ ≡ cs
+  strengthen-to-seq r₁ a₁ r₂ a₂
+    rewrite ++-assoc (proj₁ r₁)  (proj₁ r₂) (proj₂ r₂)
+    | proj₂ a₂
+    | proj₂ a₁
+    = (seq (proj₁ a₁) (proj₁ a₂))
+    , refl
 
 -- All
 --   (λ r → (proj₁ r ∈[ seq cfg₁ cfg₂ ]) × proj₁ r ++ proj₂ r ≡ cs)
@@ -65,7 +86,7 @@ correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | px ∷ all₁ | x ∷ rs₂ | 
 -- correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ | [] | all₂ = {! seq r₁ []  !}
 -- correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ | r₂ ∷ rs₂ | all₂ = {! seq r₁ r₂   !}
 
-  where
+  -- where
     -- strengthen-to-seq :
     --   ∀ (r₁ : List Char × List Char)
     --   → (a₁ : proj₁ r₁ ∈[ cfg₁ ] × proj₁ r₁ ++ proj₂ r₁ ≡ cs)
