@@ -23,12 +23,8 @@ postulate
   head-from-≡ : ∀ {A : Set} {x y : A} {xs ys : List A} → (x List.∷ xs) ≡ (y ∷ ys) → x ≡ y
   tail-from-≡ : ∀ {A : Set} {x y : A} {xs ys : List A} → (x List.∷ xs) ≡ (y ∷ ys) → xs ≡ ys
 
-  compress-concatMap : ∀ {A : Set} {f : A → List A} {xs : List A}
-    → (foldr _++_ [] (Data.List.map f xs)) ≡ (concatMap f xs)
-
   ++-runit : ∀ {A : Set} (m : List A) → m ++ [] ≡ m
   ++-assoc : ∀ {A : Set} (m n p : List A) → (m ++ n) ++ p ≡ m ++ (n ++ p)
-  ++-comm : ∀ {A : Set} (m n : List A) → m ++ n ≢ n ++ m
 
   charEq-T : ∀ x c → (charEq x c) ≡ true → x ≡ c
   charEq-F : ∀ x c → (charEq x c) ≡ false → x ≢ c
@@ -49,9 +45,11 @@ correct (seq cfg₁ cfg₂) cs | [] | [] = []
 correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ with parse (interp cfg₂) (proj₂ r₁) | correct cfg₂ (proj₂ r₁)
 correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ | [] | [] = {!   !}
 correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ | r₂ ∷ rs₂ | a₂ ∷ all₂
-  = strengthen-to-seq r₁ a₁ r₂ a₂ ∷ {! correct  !}
+  = strengthen-to-seq r₁ a₁ r₂ a₂ ∷ correct-seq₁ cfg₁ cfg₂ cs r₁ rs₁ a₁ all₁ rs₂ all₂
   where
-  strengthen-to-seq : let Result = List Char × List Char in
+  Result : Set
+  Result = List Char × List Char
+  strengthen-to-seq :
     ∀ (r₁ : Result)
     → (a₁ : proj₁ r₁ ∈[ cfg₁ ] × proj₁ r₁ ++ proj₂ r₁ ≡ cs)
     → (r₂ : Result)
@@ -61,50 +59,49 @@ correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ | r₂ ∷ rs�
     rewrite ++-assoc (proj₁ r₁)  (proj₁ r₂) (proj₂ r₂)
     | proj₂ a₂
     | proj₂ a₁
-    = (seq (proj₁ a₁) (proj₁ a₂))
-    , refl
+    = (seq (proj₁ a₁) (proj₁ a₂)) , refl
 
--- All
---   (λ r → (proj₁ r ∈[ seq cfg₁ cfg₂ ]) × proj₁ r ++ proj₂ r ≡ cs)
---   (parse
---     (interp cfg₁ >>=
---       (λ x →
---           interp cfg₂ >>=
---           (λ y → Parser.mk-parser (λ str → (x ++ y , str) ∷ []))))
---     cs)
---
---                                   = x
--- All (λ r → (proj₁ r ∈[ cfg₁ ]) × proj₁ r ++ proj₂ r ≡ cs)
---   (parse (interp cfg₁) cs)
---                                   = y        = str
--- All (λ r → (proj₁ r ∈[ cfg₂ ]) × proj₁ r ++ proj₂ r ≡ (proj₂ r₁))
---   (parse (interp cfg₁) (proj₂ r₁))
+  correct-seq₂ :
+    ∀ (cfg₁ cfg₂ : Cfg 0) (cs : List Char)
+    → (r₁ : Result)
+    → (rs₁ : List Result)
+    → (a₁ : Σ (proj₁ r₁ ∈[ cfg₁ ]) (λ x → proj₁ r₁ ++ proj₂ r₁ ≡ cs))
+    → (all₁ : All (λ r → Σ (proj₁ r ∈[ cfg₁ ]) (λ x → proj₁ r ++ proj₂ r ≡ cs)) rs₁)
+    → All (λ r → (proj₁ r ∈[ seq cfg₁ cfg₂ ]) × proj₁ r ++ proj₂ r ≡ cs)
+      (concatMap
+       (λ x →
+          concatMap (λ x₁ → (proj₁ x ++ proj₁ x₁ , proj₂ x₁) ∷ [])
+          (parse (interp cfg₂) (proj₂ x)))
+       rs₁)
+  correct-seq₂ cfg₁ cfg₂ cs r₁ [] a₁ [] = []
+  correct-seq₂ cfg₁ cfg₂ cs r₁ (x ∷ rs₁) a₁ (px ∷ all₁) = {!   !}
 
--- correct (seq cfg₁ cfg₂) cs with parse (interp cfg₁) cs | correct cfg₁ cs
--- correct (seq cfg₁ cfg₂) cs | [] | [] = []
--- correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ with parse (interp cfg₁) (proj₂ r₁) | correct cfg₂ (proj₂ r₁)
--- correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ | [] | all₂ = {! seq r₁ []  !}
--- correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ | r₂ ∷ rs₂ | all₂ = {! seq r₁ r₂   !}
+  correct-seq₁ :
+    ∀ (cfg₁ cfg₂ : Cfg 0) (cs : List Char)
+    → (r₁ : Result)
+    → (rs₁ : List Result)
+    → (a₁ : Σ (proj₁ r₁ ∈[ cfg₁ ]) (λ x → proj₁ r₁ ++ proj₂ r₁ ≡ cs))
+    → (all₁ : All (λ r → Σ (proj₁ r ∈[ cfg₁ ]) (λ x → proj₁ r ++ proj₂ r ≡ cs)) rs₁)
+    → (rs₂ : List Result)
+    → (all₂ : All (λ r → Σ (proj₁ r ∈[ cfg₂ ]) (λ x → proj₁ r ++ proj₂ r ≡ proj₂ r₁)) rs₂)
+    → All (λ r → proj₁ r ∈[ seq cfg₁ cfg₂ ] × proj₁ r ++ proj₂ r ≡ cs)
+      (foldr _++_ []
+        (Data.List.map (λ x → (proj₁ r₁ ++ proj₁ x , proj₂ x) ∷ []) rs₂)
+        ++
+        (concatMap (λ x →
+          (concatMap (λ x₁ → (proj₁ x ++ proj₁ x₁ , proj₂ x₁) ∷ [])
+            (parse (interp cfg₂) (proj₂ x))))
+        rs₁))
 
-  -- where
-    -- strengthen-to-seq :
-    --   ∀ (r₁ : List Char × List Char)
-    --   → (a₁ : proj₁ r₁ ∈[ cfg₁ ] × proj₁ r₁ ++ proj₂ r₁ ≡ cs)
-    --   → All (λ r → proj₁ r ∈[ seq cfg₁ cfg₂ ] × proj₁ r ++ proj₂ r ≡ cs)
-    --     (foldr _++_ []
-    --       (Data.List.map (λ x → (proj₁ r₁ ++ proj₁ x , proj₂ x) ∷ [])
-    --         (parse (interp cfg₂) (proj₂ r₁)))
-    --       ++
-    --       foldr _++_ []
-    --       (Data.List.map
-    --         (λ x →
-    --             foldr _++_ []
-    --             (Data.List.map (λ x₁ → (proj₁ x ++ proj₁ x₁ , proj₂ x₁) ∷ [])
-    --               (parse (interp cfg₂) (proj₂ x))))
-    --         rs₁))
-    --
-    -- strengthen-to-seq r₁ a₁ with parse (interp cfg₁) (proj₂ r₁) | correct cfg₂ (proj₂ r₁)
-    -- ... | rs₂ | all₂ = {! rs₂ all₂  !}
+  correct-seq₁ cfg₁ cfg₂ cs r₁ rs₁ a₁ all₁ [] [] = correct-seq₂ cfg₁ cfg₂ cs r₁ rs₁ a₁ all₁
+  correct-seq₁ cfg₁ cfg₂ cs r₁ rs₁ a₁ all₁ (r₂ ∷ rs₂) (a₂ ∷ all₂)
+    = ((seq (proj₁ a₁) (proj₁ a₂)) , fact) ∷ correct-seq₁ cfg₁ cfg₂ cs r₁ rs₁ a₁ all₁ rs₂ all₂
+      where
+      fact : (proj₁ r₁ ++ proj₁ r₂) ++ proj₂ r₂ ≡ cs
+      fact rewrite ++-assoc (proj₁ r₁) (proj₁ r₂) (proj₂ r₂)
+        | proj₂ a₂
+        | proj₂ a₁
+        = refl
 
 correct (alt cfg₁ cfg₂) cs with (Parser.parse (interp (seq cfg₁ cfg₂)) cs)
 ... | rs =
@@ -136,4 +133,9 @@ correct (alt cfg₁ cfg₂) cs with (Parser.parse (interp (seq cfg₁ cfg₂)) c
     weaken-to-alt (inj₂ e) = alt₂ e
 
 correct (many cfg) cs = {!   !} -- rewrite unblock
+
 correct (fix cfg) cs = {!   !}
+
+-- correct (fix cfg) cs with (parse (interp (sub (fix cfg) cfg)) cs) | correct (sub (fix cfg) cfg) cs
+-- correct (fix cfg) cs | [] | [] = {!   !}
+-- correct (fix cfg) cs | r ∷ rs | a ∷ all = {!   !}
