@@ -1,102 +1,148 @@
 module correct where
 open import cfg
-open import jarsec using (Parser ; run-parser ; partial-parse ; _>>=_ ; _>>_ ; _<*>_)
+open import jarsec using (Parser ; parse ; run-parser ; partial-parse ; _>>=_ ; _>>_ ; _<*>_)
 
 open import Data.Bool
 open import Data.List hiding (lookup)
-open import Data.Vec renaming ([_] to V[_] ; _++_ to _vv_) hiding (_>>=_)
 open import Data.Fin hiding (_+_)
 open import Data.Char
 open import Agda.Builtin.Char renaming ( primCharEquality to charEq )
 open import Data.Nat
-open import Relation.Binary.PropositionalEquality using (_≡_ ; refl)
+open import Relation.Binary.PropositionalEquality using (_≡_ ; _≢_ ; refl)
+open import Relation.Unary
 open import Data.Maybe hiding (Any ; All)
 open import Data.Sum hiding (map)
 open import Data.String hiding (length ; _++_) renaming (primStringToList to 𝕊→𝕃 ; primStringFromList to 𝕃→𝕊)
 open import Data.Product hiding (map)
 open import Agda.Builtin.Unit
-open import Data.List.Any
 open import Data.List.All
+open import Level
 
-correct : ∀ (cfg : Cfg 0) (cs : List Char) (rs : List (List Char))
-  → run-parser (interp cfg) (𝕃→𝕊 cs) ≡ just rs
-  → All (λ r → r ∈[ cfg ] × ∃ (λ x → r ++ x ≡ cs)) rs
+postulate
+  sym : ∀ {A : Set} {x y : A} → x ≡ y → y ≡ x
+  head-from-≡ : ∀ {A : Set} {x y : A} {xs ys : List A} → (x List.∷ xs) ≡ (y ∷ ys) → x ≡ y
+  tail-from-≡ : ∀ {A : Set} {x y : A} {xs ys : List A} → (x List.∷ xs) ≡ (y ∷ ys) → xs ≡ ys
 
-correct emp cs rs ()
+  ++-runit : ∀ {A : Set} (m : List A) → m ++ [] ≡ m
+  ++-assoc : ∀ {A : Set} (m n p : List A) → (m ++ n) ++ p ≡ m ++ (n ++ p)
 
-correct eps cs ([] ∷ []) refl = (eps , cs , refl) ∷ []
+  charEq-T : ∀ x c → (charEq x c) ≡ true → x ≡ c
+  charEq-F : ∀ x c → (charEq x c) ≡ false → x ≢ c
 
-correct (lit x) cs [] ε = []
-correct (lit x) cs (r ∷ rs) ε = ({!   !} , ([] , {!   !}))
-  ∷ correct (lit x) cs rs {!   !}
+correct : ∀ (cfg : Cfg 0) (cs : List Char)
+  → let rs = jarsec.parse (interp cfg) cs in
+    All (λ r → ((proj₁ r) ∈[ cfg ]) × (proj₁ r) ++ (proj₂ r) ≡ cs) rs
 
--- correct (lit x) [] [] ε = []
--- correct (lit x) [] (r ∷ rs) ()
--- correct (lit x) (c ∷ cs) [] ε = []
--- correct (lit x) (c ∷ cs) (r ∷ rs) ε = ({! lit c  !} , ([] , {!   !}))
---   ∷ correct (lit x) (c ∷ cs) rs {!   !}
+correct emp cs = []
+correct eps cs = (eps , refl) ∷ []
+correct (lit x) [] = []
+correct (lit x) (c ∷ cs) with charEq x c | charEq-T x c | charEq-F x c
+... | true | b | d rewrite b refl = (lit c , refl) ∷ []
+... | false | b | d = []
+correct (var ()) cs
+correct (seq cfg₁ cfg₂) cs = {! correct-seq₁ (parse (interp cfg₁) cs) (correct cfg₁ cs)  !}
+correct (seq cfg₁ cfg₂) cs with (parse (interp cfg₁) cs) | correct cfg₁ cs
+correct (seq cfg₁ cfg₂) cs | [] | [] = []
+correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ with parse (interp cfg₂) (proj₂ r₁) | correct cfg₂ (proj₂ r₁)
+correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ | [] | [] = ?
+correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ | r₂ ∷ rs₂ | a₂ ∷ all₂
 
-correct (var ()) cs rs ε
+  = strengthen-to-seq r₁ a₁ r₂ a₂ ∷ correct-seq₁ cfg₁ cfg₂ cs r₁ rs₁ a₁ all₁ rs₂ all₂
+  where
+  Result : Set
+  Result = List Char × List Char
+  strengthen-to-seq :
+    ∀ (r₁ : Result)
+    → (a₁ : proj₁ r₁ ∈[ cfg₁ ] × proj₁ r₁ ++ proj₂ r₁ ≡ cs)
+    → (r₂ : Result)
+    → (a₂ : proj₁ r₂ ∈[ cfg₂ ] × proj₁ r₂ ++ proj₂ r₂ ≡ proj₂ r₁)
+    → (proj₁ r₁ ++ proj₁ r₂) ∈[ seq cfg₁ cfg₂ ] × (proj₁ r₁ ++ proj₁ r₂) ++ proj₂ r₂ ≡ cs
+  strengthen-to-seq r₁ a₁ r₂ a₂
+    rewrite ++-assoc (proj₁ r₁)  (proj₁ r₂) (proj₂ r₂)
+    | proj₂ a₂
+    | proj₂ a₁
+    = (seq (proj₁ a₁) (proj₁ a₂)) , refl
 
-correct (seq cfg₁ cfg₂) cs [] ε = []
-correct (seq cfg₁ cfg₂) cs (r ∷ rs) ε = (seq {!   !} {!   !} , ({!   !} , {! ε  !}))
-  ∷ (correct (seq cfg₁ cfg₂) cs rs {!   !})
+  -- correct-seq₁ :
+  --   ∀ (rs₁ : List Result)
+  --   → (all₁ : All (λ r → (proj₁ r ∈[ cfg₁ ]) × proj₁ r ++ proj₂ r ≡ cs) rs₁)
+  --   → All (λ r → (proj₁ r ∈[ seq cfg₁ cfg₂ ]) × proj₁ r ++ proj₂ r ≡ cs)
+  --     (parse (interp cfg₁ >>= (λ x → interp cfg₂ >>= (λ y →
+  --       Parser.mk-parser (λ str → (x ++ y , str) ∷ [])))) cs)
+  -- correct-seq₁ [] [] = {! []  !}
+  -- correct-seq₁ (r₁ ∷ rs₁) (a₁ ∷ all₁) = {!   !}
 
--- correct (seq cfg₁ cfg₂) [] [] ε = []
--- correct (seq cfg₁ cfg₂) [] (r ∷ rs) ε = (seq {!   !} {!   !} , ([] , {! refl  !})) ∷ correct (seq cfg₁ cfg₂) [] rs {!   !}
--- correct (seq cfg₁ cfg₂) (c ∷ cs) [] ε = {!   !}
--- correct (seq cfg₁ cfg₂) (c ∷ cs) (r ∷ rs) ε = {!   !}
+  correct-seq₂ :
+    ∀ (cfg₁ cfg₂ : Cfg 0) (cs : List Char)
+    → (r₁ : Result)
+    → (rs₁ : List Result)
+    → (a₁ : Σ (proj₁ r₁ ∈[ cfg₁ ]) (λ x → proj₁ r₁ ++ proj₂ r₁ ≡ cs))
+    → (all₁ : All (λ r → Σ (proj₁ r ∈[ cfg₁ ]) (λ x → proj₁ r ++ proj₂ r ≡ cs)) rs₁)
+    → All (λ r → (proj₁ r ∈[ seq cfg₁ cfg₂ ]) × proj₁ r ++ proj₂ r ≡ cs)
+      (concatMap
+       (λ x →
+          concatMap (λ x₁ → (proj₁ x ++ proj₁ x₁ , proj₂ x₁) ∷ [])
+          (parse (interp cfg₂) (proj₂ x)))
+       rs₁)
+  correct-seq₂ cfg₁ cfg₂ cs r₁ [] a₁ [] = []
+  correct-seq₂ cfg₁ cfg₂ cs r₁ (x ∷ rs₁) a₁ (px ∷ all₁) = ?
 
-correct (alt cfg₁ cfg₂) cs rs ε = {!   !}
+  correct-seq₁ :
+    ∀ (cfg₁ cfg₂ : Cfg 0) (cs : List Char)
+    → (r₁ : Result)
+    → (rs₁ : List Result)
+    → (a₁ : Σ (proj₁ r₁ ∈[ cfg₁ ]) (λ x → proj₁ r₁ ++ proj₂ r₁ ≡ cs))
+    → (all₁ : All (λ r → Σ (proj₁ r ∈[ cfg₁ ]) (λ x → proj₁ r ++ proj₂ r ≡ cs)) rs₁)
+    → (rs₂ : List Result)
+    → (all₂ : All (λ r → Σ (proj₁ r ∈[ cfg₂ ]) (λ x → proj₁ r ++ proj₂ r ≡ proj₂ r₁)) rs₂)
+    → All (λ r → proj₁ r ∈[ seq cfg₁ cfg₂ ] × proj₁ r ++ proj₂ r ≡ cs)
+      (foldr _++_ []
+        (Data.List.map (λ x → (proj₁ r₁ ++ proj₁ x , proj₂ x) ∷ []) rs₂)
+        ++
+        (concatMap (λ x →
+          (concatMap (λ x₁ → (proj₁ x ++ proj₁ x₁ , proj₂ x₁) ∷ [])
+            (parse (interp cfg₂) (proj₂ x))))
+        rs₁))
 
-correct (many cfg) cs rs ε = {!   !}
+  correct-seq₁ cfg₁ cfg₂ cs r₁ rs₁ a₁ all₁ [] [] = correct-seq₂ cfg₁ cfg₂ cs r₁ rs₁ a₁ all₁
+  correct-seq₁ cfg₁ cfg₂ cs r₁ rs₁ a₁ all₁ (r₂ ∷ rs₂) (a₂ ∷ all₂)
+    = ((seq (proj₁ a₁) (proj₁ a₂)) , fact) ∷ correct-seq₁ cfg₁ cfg₂ cs r₁ rs₁ a₁ all₁ rs₂ all₂
+      where
+      fact : (proj₁ r₁ ++ proj₁ r₂) ++ proj₂ r₂ ≡ cs
+      fact rewrite ++-assoc (proj₁ r₁) (proj₁ r₂) (proj₂ r₂)
+        | proj₂ a₂
+        | proj₂ a₁
+        = refl
 
-correct (fix cfg) cs rs ε = {!   !}
+correct (alt cfg₁ cfg₂) cs with (Parser.parse (interp (seq cfg₁ cfg₂)) cs)
+... | rs =
+  let all₁ = correct cfg₁ cs
+      all₂ = correct cfg₂ cs
 
+      weak-all₁ : All (λ r → proj₁ r ∈[ alt cfg₁ cfg₂ ] × proj₁ r ++ proj₂ r ≡ cs) (Parser.parse (interp cfg₁) cs)
+      weak-all₁ = Data.List.All.map
+        (λ r → ((weaken-to-alt {cfg₁ = cfg₁} {cfg₂ = cfg₂} (inj₁ (proj₁ r))) , (proj₂ r)))
+        all₁
 
--- correct cfg cs ε with to-witness ε
--- correct emp cs () | res
---
--- correct eps cs ε | res = eps
--- -- correct eps (() ∷ cs) ε | res
--- -- correct eps (c ∷ cs) ε | res = {!   !}
--- -- correct eps (c ∷ cs) ε | res with to-witness ε
--- -- correct eps (c ∷ cs) ε | res | hmm = {!   !}
---
--- -- I kNOW that c ∷ cs is absurd because epsilon says so, but agda doesn't
--- -- know how to make the connection between
--- -- I know I have to split out a lemma for this
--- -- but if I have to split out a lemma for every single one
--- -- then that's just the proof itself
---
--- -- LEMMA I WANT: bridge between ε and cs and res
---
---
--- correct (lit x) cs ε | res rewrite 𝕃⇄𝕊 cs = {! lit x  !}
--- correct (var ()) cs ε | res
--- correct (seq cfg₁ cfg₂) cs ε | res = {!   !}
--- correct (alt cfg₁ cfg₂) cs ε | res = {!   !}
--- correct (many cfg) cs ε | res = {!   !}
--- correct (fix cfg) cs ε | res = {!   !}
+      weak-all₂ : All (λ r → proj₁ r ∈[ alt cfg₁ cfg₂ ] × proj₁ r ++ proj₂ r ≡ cs) (Parser.parse (interp cfg₂) cs)
+      weak-all₂ = Data.List.All.map
+        (λ r → (weaken-to-alt {cfg₁ = cfg₁} {cfg₂ = cfg₂} (inj₂ (proj₁ r))) , (proj₂ r))
+        all₂
 
+  in all++ weak-all₁ weak-all₂
 
-_ : (𝕊→𝕃 "") ∈[ eps ]
-_ = eps
+  where
+    all++ : ∀ {p} {A : Set} {P : Pred A p} {xs ys : List A}
+      → All P xs → All P ys → All P (xs ++ ys)
+    all++ [] [] = []
+    all++ [] (py ∷ all₂) = py ∷ (all++ [] all₂)
+    all++ (px ∷ all₁) all₂ = px ∷ (all++ all₁ all₂)
 
--- _ : (𝕊→𝕃 "") ∈[ eps ]
--- _ = lit 'x'
+    weaken-to-alt : ∀ {r} {cfg₁ cfg₂ : Cfg 0}
+      → (r ∈[ cfg₁ ]) ⊎ (r ∈[ cfg₂ ]) → r ∈[ alt cfg₁ cfg₂ ]
+    weaken-to-alt (inj₁ e) = alt₁ e
+    weaken-to-alt (inj₂ e) = alt₂ e
 
-_ : (𝕊→𝕃 "x") ∈[ lit 'x' ]
-_ = lit 'x'
+correct (many cfg) cs = ?
 
--- _ : (𝕊→𝕃 "xx") ∈[ lit 'x' ]
--- _ = lit 'x'
-
-
--- _ : correct xX-or-ε (𝕊→𝕃 "xx") {!   !}
---     ≡
---     unroll {cfg = (alt (seq (lit 'x') (var zero)) eps)} (
---       alt₁ (seq (lit 'x') (unroll (
---         alt₁ (seq (lit 'x') (unroll (
---           alt₂ eps)))))))
--- _ = refl
+correct (fix cfg) cs = ?

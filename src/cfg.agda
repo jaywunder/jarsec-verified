@@ -50,6 +50,7 @@ suc m ⊕ n = m ⊕ suc n
 introd-var : ∀ {n : ℕ} (i : Fin n) → Fin (n ⊖ i) → Fin n
 introd-var zero x = suc x
 introd-var (suc i) zero = zero
+
 introd-var (suc i) (suc x) = suc (introd-var i x)
 
 introd : ∀ {n : ℕ} (i : Fin n) → Cfg (n ⊖ i) → Cfg n
@@ -121,6 +122,20 @@ data _∈[_] : List A → Cfg 0 → Set where
     → s ∈[ sub (fix cfg) cfg ]
     → s ∈[ fix cfg ]
 
+abstract
+  instance
+    block : ⊤
+    block = tt
+  unblock : block ≡ tt
+  unblock = refl
+
+delayed : ∀ {A : Set} → ⊤ → A  → A
+delayed tt x = x
+
+delay : ∀ {A : Set} → A → A
+delay = delayed block
+
+
 {-# TERMINATING #-}
 interp : Cfg 0 → Parser (List A)
 interp emp = Parser.mk-parser (λ _ → [])
@@ -134,7 +149,7 @@ interp (seq cfg₁ cfg₂) = do
   y ← (interp cfg₂)
   jarsec.unit (x ++ y)
 interp (alt cfg₁ cfg₂) = jarsec.combine (interp cfg₁) (interp cfg₂)
-interp (many cfg) = interp (alt eps (seq cfg (many cfg)))
+interp (many cfg) = interp (alt eps (seq cfg (delay (many cfg))))
 interp (fix cfg) = interp (sub (fix cfg) cfg)
 
 a : Fin 2

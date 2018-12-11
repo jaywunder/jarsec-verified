@@ -39,7 +39,8 @@ bind : ∀ { A B : Set } → Parser A → (A → Parser B) → Parser B
 bind {A} p f = mk-parser $ λ cs →
   let rs : List (A × List Char)
       rs = parse p cs
-  in concatMap (λ where (x , cs′) → parse (f x) cs′) rs
+  in concatMap (λ x → parse (f (proj₁ x)) (proj₂ x)) rs
+  -- in concatMap (λ where (x , cs′) → parse (f x) cs′) rs
 
 _>>=_ : ∀ { A B : Set } → Parser A → (A → Parser B) → Parser B
 p >>= f = bind p f
@@ -227,18 +228,18 @@ runParser p str = case (parse p (primStringToList str)) of λ where
   [] → nothing
   (res ∷ xs) → just (proj₁ res)
 
-partial-parse :  { A : Set } → Parser A → String → Maybe (List (A × List Char))
-partial-parse p str with parse p (primStringToList str)
-partial-parse p str | [] = nothing
-partial-parse p str | xs = just xs
-
-run-parser : { A : Set } → Parser A → String → Maybe (List A)
-run-parser p str = case (parse p (primStringToList str)) of λ where
-  [] → nothing
-  xs → just (foldl (λ sum x → (proj₁ x) ∷ sum) [] xs)
-
 run : String → Maybe Expr
 run = runParser expr
 
 do-everything : String → ℕ
 do-everything str = eval′ $ run str
+
+partial-parse :  { A : Set } → Parser A → String → Maybe (List (A × List Char))
+partial-parse p str with parse p (primStringToList str)
+partial-parse p str | [] = nothing
+partial-parse p str | xs = just xs
+
+run-parser : { A : Set } → Parser A → List Char → Maybe (List (A × List Char))
+run-parser p str = case (parse p str) of λ where
+  [] → nothing
+  xs → just xs
