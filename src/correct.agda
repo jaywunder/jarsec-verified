@@ -40,11 +40,13 @@ correct (lit x) (c ∷ cs) with charEq x c | charEq-T x c | charEq-F x c
 ... | true | b | d rewrite b refl = (lit c , refl) ∷ []
 ... | false | b | d = []
 correct (var ()) cs
+correct (seq cfg₁ cfg₂) cs = {! correct-seq₁ (parse (interp cfg₁) cs) (correct cfg₁ cs)  !}
 correct (seq cfg₁ cfg₂) cs with (parse (interp cfg₁) cs) | correct cfg₁ cs
 correct (seq cfg₁ cfg₂) cs | [] | [] = []
 correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ with parse (interp cfg₂) (proj₂ r₁) | correct cfg₂ (proj₂ r₁)
-correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ | [] | [] = {!   !}
+correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ | [] | [] = ?
 correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ | r₂ ∷ rs₂ | a₂ ∷ all₂
+
   = strengthen-to-seq r₁ a₁ r₂ a₂ ∷ correct-seq₁ cfg₁ cfg₂ cs r₁ rs₁ a₁ all₁ rs₂ all₂
   where
   Result : Set
@@ -61,6 +63,15 @@ correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ | r₂ ∷ rs�
     | proj₂ a₁
     = (seq (proj₁ a₁) (proj₁ a₂)) , refl
 
+  -- correct-seq₁ :
+  --   ∀ (rs₁ : List Result)
+  --   → (all₁ : All (λ r → (proj₁ r ∈[ cfg₁ ]) × proj₁ r ++ proj₂ r ≡ cs) rs₁)
+  --   → All (λ r → (proj₁ r ∈[ seq cfg₁ cfg₂ ]) × proj₁ r ++ proj₂ r ≡ cs)
+  --     (parse (interp cfg₁ >>= (λ x → interp cfg₂ >>= (λ y →
+  --       Parser.mk-parser (λ str → (x ++ y , str) ∷ [])))) cs)
+  -- correct-seq₁ [] [] = {! []  !}
+  -- correct-seq₁ (r₁ ∷ rs₁) (a₁ ∷ all₁) = {!   !}
+
   correct-seq₂ :
     ∀ (cfg₁ cfg₂ : Cfg 0) (cs : List Char)
     → (r₁ : Result)
@@ -74,7 +85,7 @@ correct (seq cfg₁ cfg₂) cs | r₁ ∷ rs₁ | a₁ ∷ all₁ | r₂ ∷ rs�
           (parse (interp cfg₂) (proj₂ x)))
        rs₁)
   correct-seq₂ cfg₁ cfg₂ cs r₁ [] a₁ [] = []
-  correct-seq₂ cfg₁ cfg₂ cs r₁ (x ∷ rs₁) a₁ (px ∷ all₁) = {!   !}
+  correct-seq₂ cfg₁ cfg₂ cs r₁ (x ∷ rs₁) a₁ (px ∷ all₁) = ?
 
   correct-seq₁ :
     ∀ (cfg₁ cfg₂ : Cfg 0) (cs : List Char)
@@ -132,10 +143,6 @@ correct (alt cfg₁ cfg₂) cs with (Parser.parse (interp (seq cfg₁ cfg₂)) c
     weaken-to-alt (inj₁ e) = alt₁ e
     weaken-to-alt (inj₂ e) = alt₂ e
 
-correct (many cfg) cs = {!   !} -- rewrite unblock
+correct (many cfg) cs = ?
 
-correct (fix cfg) cs = {!   !}
-
--- correct (fix cfg) cs with (parse (interp (sub (fix cfg) cfg)) cs) | correct (sub (fix cfg) cfg) cs
--- correct (fix cfg) cs | [] | [] = {!   !}
--- correct (fix cfg) cs | r ∷ rs | a ∷ all = {!   !}
+correct (fix cfg) cs = ?

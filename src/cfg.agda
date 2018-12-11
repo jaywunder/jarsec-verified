@@ -50,6 +50,7 @@ suc m ⊕ n = m ⊕ suc n
 introd-var : ∀ {n : ℕ} (i : Fin n) → Fin (n ⊖ i) → Fin n
 introd-var zero x = suc x
 introd-var (suc i) zero = zero
+
 introd-var (suc i) (suc x) = suc (introd-var i x)
 
 introd : ∀ {n : ℕ} (i : Fin n) → Cfg (n ⊖ i) → Cfg n
